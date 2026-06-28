@@ -1,20 +1,19 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
-import * as Device from 'expo-device';
-import { Platform, StyleSheet, Animated, View, Dimensions, TouchableOpacity, ScrollView, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker } from 'react-native-maps';
 import { Image } from 'expo-image';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Dimensions, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { getEvents, Event as FirebaseEvent } from '@/firebase/events';
+import { Event as FirebaseEvent, getEvents } from '@/firebase/events';
 import { AVATAR_MAP } from './profile';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MAP_HEIGHT = SCREEN_HEIGHT * 0.81; 
+const MAP_HEIGHT = SCREEN_HEIGHT * 0.75; 
 const STICKY_HEADER_HEIGHT = 60;
 const EVENT_TYPES = ['All', 'Studying', 'Sports', 'Hangout', 'Nature', 'Food'];
 

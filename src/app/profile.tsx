@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { Platform, ScrollView, StyleSheet, TouchableOpacity, TextInput, View, Pressable } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { logout } from '@/firebase/auth';
 import { getUserAvatar, updateUserAvatar } from '@/firebase/users';
+import { useTheme } from '@/hooks/use-theme';
 
 const AVAILABLE_INTERESTS = ['Studying', 'Sports', 'Hangout', 'Nature', 'Food', 'Gaming', 'Music', 'Hackathons'];
 
@@ -25,7 +26,7 @@ const MOCK_AVATAR_KEYS = Object.keys(AVATAR_MAP);
 export default function TabTwoScreen() {
   const safeAreaInsets = useSafeAreaInsets();
   const theme = useTheme();
-  
+
   const insets = {
     ...safeAreaInsets,
     bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
@@ -72,7 +73,7 @@ export default function TabTwoScreen() {
       }}
     >
       <ThemedView style={styles.container}>
-        
+
         {/* Profile Hero Header Section */}
         <View style={styles.heroSection}>
           <View style={styles.avatarWrapper}>
@@ -83,7 +84,7 @@ export default function TabTwoScreen() {
               </View>
             )}
           </View>
-          
+
           <ThemedText type="subtitle" style={styles.profileTitle}>
             {name || 'Your Campus Persona'}
           </ThemedText>
@@ -93,15 +94,15 @@ export default function TabTwoScreen() {
         </View>
 
         {/* Form Sections Area - Fades when locked */}
-        <View 
-          style={[styles.formContainer, !isEditing && { opacity: 0.5 }]} 
+        <View
+          style={[styles.formContainer, !isEditing && { opacity: 0.5 }]}
           pointerEvents={isEditing ? 'auto' : 'none'}
         >
-          
+
           {/* Identity Section Card */}
           <View style={styles.formCard}>
             <ThemedText type="defaultSemiBold" style={styles.sectionLabel}>About You</ThemedText>
-            
+
             <View style={styles.inputWrapper}>
               <ThemedText type="small" style={styles.inputLabel}>DISPLAY NAME</ThemedText>
               <TextInput
@@ -138,21 +139,21 @@ export default function TabTwoScreen() {
               <ThemedText type="defaultSemiBold" style={styles.sectionLabel}>Choose Your Avatar</ThemedText>
               {MOCK_AVATAR_KEYS.length > 4 && (
                 <TouchableOpacity onPress={() => setShowAllAvatars(!showAllAvatars)} style={{ padding: 4 }}>
-                  <SymbolView 
-                    name={{ 
-                      ios: showAllAvatars ? 'chevron.up' : 'chevron.down', 
+                  <SymbolView
+                    name={{
+                      ios: showAllAvatars ? 'chevron.up' : 'chevron.down',
                       android: showAllAvatars ? 'keyboard_arrow_up' : 'keyboard_arrow_down',
-                      web: showAllAvatars ? 'keyboard_arrow_up' : 'keyboard_arrow_down' 
-                    }} 
-                    size={24} 
-                    tintColor="#6B7280" 
+                      web: showAllAvatars ? 'keyboard_arrow_up' : 'keyboard_arrow_down'
+                    }}
+                    size={24}
+                    tintColor="#6B7280"
                   />
                 </TouchableOpacity>
               )}
             </View>
             <View style={styles.avatarGrid}>
               {MOCK_AVATAR_KEYS.slice(0, showAllAvatars ? MOCK_AVATAR_KEYS.length : 4).map((avatarKey, index) => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   key={avatarKey}
                   style={[styles.avatarOptionWrapper, selectedAvatarKey === avatarKey && styles.selectedAvatarOption]}
                   onPress={() => handleSelectAvatar(avatarKey)}
@@ -205,7 +206,7 @@ export default function TabTwoScreen() {
         </View>
 
         {/* Action Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
           onPress={() => setIsEditing(!isEditing)}
         >
@@ -214,6 +215,9 @@ export default function TabTwoScreen() {
           </ThemedText>
         </TouchableOpacity>
 
+        <TouchableOpacity style={styles.logoutButton} onPress={() => logout()}>
+          <ThemedText style={styles.logoutButtonText}>Log out</ThemedText>
+        </TouchableOpacity>
         {Platform.OS === 'web' && <WebBadge />}
       </ThemedView>
     </ScrollView>
@@ -392,5 +396,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
-  }
+  },
+  logoutButton: {
+    backgroundColor: '#FEE2E2',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: Spacing.two,
+    marginBottom: Spacing.two,
+  },
+  logoutButtonText: {
+    color: '#DC2626',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });
