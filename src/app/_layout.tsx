@@ -20,14 +20,10 @@ export default function TabLayout() {
     return unsubscribe;
   }, []);
 
-  if (loading) return null;
-
-  if (!user) return <LoginScreen />;
-
-  return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
-  );
+return (
+  <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <AnimatedSplashOverlay />
+    {!user ? <LoginScreen /> : <AppTabs />}
+  </ThemeProvider>
+);
 }

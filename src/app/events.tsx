@@ -1,9 +1,10 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
+
 import { SymbolView } from 'expo-symbols';
 import { useRef, useState } from 'react';
-import { Animated, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Modal, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -32,8 +33,6 @@ export default function TabTwoScreen() {
 
   // Form State Fields
   const [activityName, setActivityName] = useState('');
-  const [date, setDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [time, setTime] = useState('');
   const [duration, setDuration] = useState('');
   const [selectedType, setSelectedType] = useState('Studying');
@@ -246,28 +245,13 @@ export default function TabTwoScreen() {
 
               <View style={styles.inputGroup}>
                 <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>Start Time</ThemedText>
-                <TouchableOpacity
+                <TextInput
                   style={styles.textInput}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <Text style={{ color: time ? '#111827' : '#9CA3AF', fontSize: 15 }}>
-                    {time ? new Date(time).toLocaleString() : 'Select date and time'}
-                  </Text>
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={date}
-                    mode="datetime"
-                    display="default"
-                    onChange={(event, selectedDate) => {
-                      setShowDatePicker(false);
-                      if (selectedDate) {
-                        setDate(selectedDate);
-                        setTime(selectedDate.toISOString());
-                      }
-                    }}
-                  />
-                )}
+                  placeholder="e.g., 25/06/2025 14:00"
+                  placeholderTextColor="#9CA3AF"
+                  value={time}
+                  onChangeText={setTime}
+                />
               </View>
               <View style={styles.inputGroup}>
                 <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>Duration</ThemedText>
