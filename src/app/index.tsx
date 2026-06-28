@@ -146,7 +146,7 @@ export default function HomeScreen() {
                     color: '#3B82F6',
                     location: evt.location || 'NUS',
                     vacancy: 10,
-                    time: evt.time || 'TBD',
+                    time: evt.startTime ? evt.startTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBD',
                     host: 'You',
                     description: 'An event you created on the map.'
                   });
@@ -234,7 +234,7 @@ export default function HomeScreen() {
             color: '#8B5CF6',
             location: evt.location || 'Campus',
             vacancy: 10,
-            time: evt.time || 'TBD',
+            time: evt.startTime ? evt.startTime.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBD',
             host: 'Community Member',
             description: 'A community-created event.'
           }))]

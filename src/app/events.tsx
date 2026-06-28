@@ -1,9 +1,12 @@
 
 import { SymbolView } from 'expo-symbols';
+import { Timestamp } from 'firebase/firestore';
 import { useRef, useState } from 'react';
 import { Animated, Modal, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
 
 
 import { ThemedText } from '@/components/themed-text';
@@ -33,8 +36,9 @@ export default function TabTwoScreen() {
 
   // Form State Fields
   const [activityName, setActivityName] = useState('');
-  const [time, setTime] = useState('');
-  const [duration, setDuration] = useState('');
+  const [startDate, setStartDate] = useState(new Date());
+  const [durationHours, setDurationHours] = useState(1);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedType, setSelectedType] = useState('Studying');
   const [locationDescription, setLocationDescription] = useState('');
 
@@ -47,9 +51,9 @@ export default function TabTwoScreen() {
   });
 
   // Mock list of events the user has joined
-  const [myEvents, setMyEvents] = useState([
-    { id: 'j1', name: 'CS2100 Midterm Grind', type: 'Studying', location: 'COM1 SR1', time: '14:00 - 18:00', host: 'Alex Tan' },
-    { id: 'j2', name: 'Board Games Night', type: 'Hangout', location: 'UTown ERC', time: '19:00 - 23:00', host: 'Sarah Wee' }
+  const [myEvents, setMyEvents] = useState<any[]>([
+    { id: 'j1', name: 'CS2100 Midterm Grind', type: 'Studying', location: 'COM1 SR1', time: '14:00 - 18:00', host: 'Alex Tan', endTime: new Date('2099-01-01') },
+    { id: 'j2', name: 'Board Games Night', type: 'Hangout', location: 'UTown ERC', time: '19:00 - 23:00', host: 'Sarah Wee', endTime: new Date('2099-01-01') }
   ]);
 
   // Animated Hooks for screen Transitions & Toast status alert
@@ -60,36 +64,39 @@ export default function TabTwoScreen() {
     if (!activityName) return;
 
     try {
-      const avatar = await getUserAvatar() || 'dawg'; // fallback to dawg if not set
+      const avatar = await getUserAvatar() || 'dawg';
+
+      const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
+      const startTimestamp = Timestamp.fromDate(startDate);
+      const endTimestamp = Timestamp.fromDate(endDate);
 
       await addEvent({
         title: activityName,
-        category: 'Hangout', // Default category for now
+        category: selectedType,
         location: locationDescription,
-        time: time,
+        startTime: startTimestamp,
+        endTime: endTimestamp,
         latitude: eventCoordinates.latitude,
         longitude: eventCoordinates.longitude,
-        avatar: avatar
+        avatar: avatar,
       }, "anonymous_user");
 
       const newEvent = {
         id: Math.random().toString(),
         name: activityName,
-        type: 'Hangout',
-        color: '#8B5CF6',
-        time: time || 'TBD',
+        type: selectedType,
+        time: `${startDate.toLocaleDateString()} ${startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        endTime: endDate,
         location: locationDescription || 'Campus',
         host: 'Me'
       };
       setMyEvents([newEvent, ...myEvents]);
 
-      // Clear form fields cleanly
       setActivityName('');
-      setTime('');
-      setDuration('');
+      setStartDate(new Date());
+      setDurationHours(1);
       setLocationDescription('');
 
-      // Trigger Success Banner Transition Sequence
       setShowToast(true);
       setIsCreating(false);
       Animated.sequence([
@@ -98,13 +105,18 @@ export default function TabTwoScreen() {
         Animated.timing(toastOpacity, { toValue: 0, duration: 400, useNativeDriver: true })
       ]).start(() => {
         setShowToast(false);
-        // Fade back the screen text elegantly
         Animated.timing(viewFadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
       });
     } catch (error) {
       console.error(error);
     }
   };
+
+  const now = new Date();
+  const activeEvents = myEvents.filter(e => {
+    const end = e.endTime instanceof Date ? e.endTime : (e.endTime as any)?.toDate?.();
+    return end ? end >= now : true;
+  });
 
   return (
     <ThemedView style={[styles.outerFrame, { backgroundColor: theme.background }]}>
@@ -125,13 +137,13 @@ export default function TabTwoScreen() {
             </ThemedText>
           </View>
 
-          {myEvents.length === 0 ? (
+          {activeEvents.length === 0 ? (
             <View style={styles.emptyContainer}>
               <ThemedText style={{ opacity: 0.5 }}>You haven't joined any events yet.</ThemedText>
             </View>
           ) : (
             <View style={styles.eventsGrid}>
-              {myEvents.map((event) => (
+              {activeEvents.map((event) => (
                 <View key={event.id}>
                   <TouchableOpacity
                     activeOpacity={0.7}
@@ -245,22 +257,34 @@ export default function TabTwoScreen() {
 
               <View style={styles.inputGroup}>
                 <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>Start Time</ThemedText>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g., 25/06/2025 14:00"
-                  placeholderTextColor="#9CA3AF"
-                  value={time}
-                  onChangeText={setTime}
+                <TouchableOpacity style={styles.textInput} onPress={() => setShowDatePicker(true)}>
+                  <ThemedText style={{ color: '#111827', fontSize: 15 }}>
+                    {startDate.toLocaleDateString()} {startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </ThemedText>
+                </TouchableOpacity>
+                <DateTimePickerModal
+                  isVisible={showDatePicker}
+                  mode="datetime"
+                  onConfirm={(date) => {
+                    setStartDate(date);
+                    setShowDatePicker(false);
+                  }}
+                  onCancel={() => setShowDatePicker(false)}
                 />
               </View>
+
               <View style={styles.inputGroup}>
-                <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>Duration</ThemedText>
+                <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>Duration (hours)</ThemedText>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="e.g., 2 hours"
+                  placeholder="e.g., 2"
                   placeholderTextColor="#9CA3AF"
-                  value={duration}
-                  onChangeText={setDuration}
+                  keyboardType="numeric"
+                  value={String(durationHours)}
+                  onChangeText={(val) => {
+                    const parsed = parseFloat(val);
+                    setDurationHours(isNaN(parsed) || parsed <= 0 ? 1 : parsed);
+                  }}
                 />
               </View>
 

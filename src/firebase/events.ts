@@ -1,19 +1,23 @@
 import {
+  Timestamp,
   addDoc,
   collection,
   getDocs,
   orderBy,
   query,
   serverTimestamp,
+  where,
 } from "firebase/firestore";
 import { db } from "./firebase";
+
 const EVENTS_COLLECTION = "events";
 
 export interface EventData {
   title: string;
   category: string;
   location: string;
-  time: string;
+  startTime: Timestamp;
+  endTime: Timestamp;
   latitude: number;
   longitude: number;
   avatar: string;
@@ -30,7 +34,8 @@ export async function addEvent(eventData: EventData, createdBy: string): Promise
     title: eventData.title,
     category: eventData.category,
     location: eventData.location,
-    time: eventData.time,
+    startTime: eventData.startTime,
+    endTime: eventData.endTime,
     latitude: eventData.latitude,
     longitude: eventData.longitude,
     avatar: eventData.avatar,
@@ -41,16 +46,15 @@ export async function addEvent(eventData: EventData, createdBy: string): Promise
 }
 
 export async function getEvents(): Promise<Event[]> {
+  const now = Timestamp.now();
   const q = query(
     collection(db, EVENTS_COLLECTION),
-    orderBy("createdAt", "desc")
+    where("endTime", ">=", now),
+    orderBy("endTime", "asc")
   );
   const snapshot = await getDocs(q);
-  const now = new Date();
-  return snapshot.docs
-    .map((doc) => ({
-      id: doc.id,
-      ...(doc.data() as Omit<Event, "id">),
-    }))
-    .filter((event) => new Date(event.time) > now);
+  return snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Omit<Event, "id">),
+  }));
 }
