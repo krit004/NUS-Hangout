@@ -14,6 +14,9 @@ export interface EventData {
   category: string;
   location: string;
   time: string;
+  latitude: number;
+  longitude: number;
+  avatar: string;
 }
 
 export interface Event extends EventData {
@@ -28,6 +31,9 @@ export async function addEvent(eventData: EventData, createdBy: string): Promise
     category: eventData.category,
     location: eventData.location,
     time: eventData.time,
+    latitude: eventData.latitude,
+    longitude: eventData.longitude,
+    avatar: eventData.avatar,
     createdBy: createdBy,
     createdAt: serverTimestamp(),
   });

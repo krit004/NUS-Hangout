@@ -1,16 +1,22 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import * as Device from 'expo-device';
 import { Platform, StyleSheet, Animated, View, Dimensions, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import MapView, { Marker } from 'react-native-maps';
+import { Image } from 'expo-image';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { getEvents, Event as FirebaseEvent } from '@/firebase/events';
+import { AVATAR_MAP } from './profile';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.81; 
 const STICKY_HEADER_HEIGHT = 60;
+const EVENT_TYPES = ['All', 'Studying', 'Sports', 'Hangout', 'Nature', 'Food'];
 
 // Mock Data 
 const MOCK_EVENTS = [
@@ -36,13 +42,30 @@ interface EventItem {
 
 export default function HomeScreen() {
   const [selectedDay, setSelectedDay] = useState('Today');
+  const [selectedType, setSelectedType] = useState('All');
   const [showDropdownOptions, setShowDropdownOptions] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
   const [joinedEvents, setJoinedEvents] = useState<string[]>([]);
+  const [firebaseEvents, setFirebaseEvents] = useState<FirebaseEvent[]>([]);
+  
+  useFocusEffect(
+    useCallback(() => {
+      getEvents().then(setFirebaseEvents).catch(console.error);
+    }, [])
+  );
   
   // Animation hooks
   const [scrollY] = useState(() => new Animated.Value(0));
   const [welcomeFade] = useState(() => new Animated.Value(1));
+  const scrollRef = useRef<any>(null);
+  
+  const handleTypeFilter = useCallback((type: string) => {
+    setSelectedType(type);
+    // Scroll to the filter bar position so cards are visible
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ y: MAP_HEIGHT, animated: true });
+    }
+  }, []);
   
 
   // 1. Fade out the welcome text automatically on mount
@@ -94,24 +117,71 @@ export default function HomeScreen() {
           </SafeAreaView>
         </Animated.View>
 
-        {/* Map Placeholder - Replace with <MapView> later */}
-        <View style={styles.mapPlaceholder}>
-          <ThemedText type="subtitle" style={styles.mapText}>[ Interactive Map View ]</ThemedText>
-          <ThemedText type="small" style={{ opacity: 0.6 }}>Showcase of events happening {selectedDay.toLowerCase()}</ThemedText>
+        {/* Interactive Map View */}
+        <View style={styles.mapContainer}>
+          <MapView
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+            mapType="satellite"
+            initialRegion={{
+              latitude: 1.2966,
+              longitude: 103.7764,
+              latitudeDelta: 0.02,
+              longitudeDelta: 0.02,
+            }}
+          >
+            {firebaseEvents.map(evt => (
+              <Marker
+                key={evt.id}
+                coordinate={{ latitude: evt.latitude || 1.2966, longitude: evt.longitude || 103.7764 }}
+                title={evt.title}
+                description={evt.location}
+                onPress={() => {
+                  // Auto-join since you created it
+                  if (!joinedEvents.includes(evt.id)) {
+                    setJoinedEvents(prev => [...prev, evt.id]);
+                  }
+                  setSelectedEvent({
+                    id: evt.id,
+                    name: evt.title,
+                    type: evt.category || 'Hangout',
+                    color: '#3B82F6',
+                    location: evt.location || 'NUS',
+                    vacancy: 10,
+                    time: evt.time || 'TBD',
+                    host: 'You',
+                    description: 'An event you created on the map.'
+                  });
+                }}
+              >
+                <View style={styles.markerContainer}>
+                  {evt.avatar && AVATAR_MAP[evt.avatar] ? (
+                    <Image source={AVATAR_MAP[evt.avatar]} style={styles.markerAvatar} />
+                  ) : (
+                    <View style={styles.markerDot} />
+                  )}
+                </View>
+              </Marker>
+            ))}
+          </MapView>
+          {/* Darker Map Overlay */}
+          <View style={styles.darkOverlay} pointerEvents="none" />
         </View>
       </Animated.View>
 
       {/* Main Scrollable Event Content */}
       <Animated.ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.scrollContent, { paddingTop: MAP_HEIGHT }]}
         scrollEventThrottle={16}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: true }
         )}
-        stickyHeaderIndices={[0]} // Anchors the Dropdown Header once it hits the top
+        snapToOffsets={[0, MAP_HEIGHT]}
+        decelerationRate="fast"
+        stickyHeaderIndices={[0]}
       >
-        {/* Sticky Dropdown Row */}
+        {/* Sticky Header: Timeline + Type Filters */}
         <View style={styles.stickyHeaderContainer}>
           <View style={styles.dropdownBar}>
             <ThemedText type="defaultSemiBold">Timeline: </ThemedText>
@@ -139,21 +209,48 @@ export default function HomeScreen() {
               ))}
             </View>
           )}
+
+          {/* Type Filter Chips - inside sticky header */}
+          <View style={styles.typeFilterContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeFilterScroll}>
+              {EVENT_TYPES.map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.typeChip, selectedType === type && styles.typeChipActive]}
+                  onPress={() => handleTypeFilter(type)}
+                >
+                  <ThemedText style={[styles.typeChipText, selectedType === type && styles.typeChipTextActive]}>{type}</ThemedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </View>
 
         {/* Cards Content Section */}
         <ThemedView style={styles.cardsContainer}>
-          {MOCK_EVENTS.map((event, index) => {
-            // "Pile up" entry animation calculation per card based on scroll progress
-            const cardInputRange = [-1, 0, MAP_HEIGHT * 0.8 + index * 40, MAP_HEIGHT + index * 50];
+          {[...MOCK_EVENTS, ...firebaseEvents.map(evt => ({
+            id: evt.id,
+            name: evt.title,
+            type: evt.category || 'Hangout',
+            color: '#8B5CF6',
+            location: evt.location || 'Campus',
+            vacancy: 10,
+            time: evt.time || 'TBD',
+            host: 'Community Member',
+            description: 'A community-created event.'
+          }))]
+            .filter(event => selectedType === 'All' || event.type === selectedType)
+            .map((event, index) => {
+            // Cards start invisible and fade in as user scrolls past the map
+            const cardInputRange = [-1, 0, MAP_HEIGHT * 0.6 + index * 20, MAP_HEIGHT + index * 25];
             const cardTranslateY = scrollY.interpolate({
               inputRange: cardInputRange,
-              outputRange: [0, 0, 60, 0],
+              outputRange: [0, 0, 30, 0],
               extrapolate: 'clamp',
             });
             const cardOpacity = scrollY.interpolate({
               inputRange: cardInputRange,
-              outputRange: [1, 1, 0, 1],
+              outputRange: [0, 0, 0, 1],
               extrapolate: 'clamp',
             });
 
@@ -165,21 +262,23 @@ export default function HomeScreen() {
                   { opacity: cardOpacity, transform: [{ translateY: cardTranslateY }] }
                 ]}
               >
-                <View style={styles.cardHeader}>
-                  <ThemedText type="subtitle" style={styles.eventName}>{event.name}</ThemedText>
-                  <View style={[styles.badge, { backgroundColor: event.color }]}>
-                    <ThemedText style={styles.badgeText}>{event.type}</ThemedText>
+                <TouchableOpacity onPress={() => setSelectedEvent(event as any)} activeOpacity={0.7}>
+                  <View style={styles.cardHeader}>
+                    <ThemedText type="subtitle" style={styles.eventName}>{event.name}</ThemedText>
+                    <View style={[styles.badge, { backgroundColor: event.color }]}>
+                      <ThemedText style={styles.badgeText}>{event.type}</ThemedText>
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.cardDetailsRow}>
-                  <ThemedText type="defaultSemiBold" style={styles.locationText}>📍 {event.location}</ThemedText>
-                  <ThemedText style={styles.vacancyText}>👥 {event.vacancy} left</ThemedText>
-                </View>
+                  <View style={styles.cardDetailsRow}>
+                    <ThemedText type="defaultSemiBold" style={styles.locationText}>📍 {event.location}</ThemedText>
+                    <ThemedText style={styles.vacancyText}>👥 {event.vacancy} left</ThemedText>
+                  </View>
 
-                <View style={styles.cardFooter}>
-                  <ThemedText type="small" style={styles.timeText}>🕒 {event.time}</ThemedText>
-                </View>
+                  <View style={styles.cardFooter}>
+                    <ThemedText type="small" style={styles.timeText}>🕒 {event.time}</ThemedText>
+                  </View>
+                </TouchableOpacity>
               </Animated.View>
             );
           })}
@@ -287,15 +386,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.7,
   },
-  mapPlaceholder: {
+  mapContainer: {
     flex: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#000',
+  },
+  darkOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  markerContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+    backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  mapText: {
-    color: '#4B5563',
-    marginBottom: 4,
+  markerAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  markerDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
   },
   scrollContent: {
     flexGrow: 1,
@@ -346,13 +464,44 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F3F4F6',
     alignItems: 'center',
   },
+  typeFilterContainer: {
+    backgroundColor: '#F9FAFB',
+    paddingVertical: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  typeFilterScroll: {
+    paddingHorizontal: Spacing.four,
+    gap: Spacing.two,
+  },
+  typeChip: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  typeChipActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  typeChipText: {
+    fontSize: 13,
+    color: '#4B5563',
+    fontWeight: '500',
+  },
+  typeChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
   cardsContainer: {
-    flex: 1,
+    minHeight: SCREEN_HEIGHT,
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.four,
     gap: Spacing.three,
     alignItems: 'center',
-    backgroundColor: '#F9FAFB', // Slight offset so cards pop out elegantly
+    backgroundColor: '#F9FAFB',
   },
   eventCard: {
     backgroundColor: '#FFFFFF',

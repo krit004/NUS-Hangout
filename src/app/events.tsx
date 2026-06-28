@@ -1,14 +1,17 @@
 import React, {useState, useRef } from 'react';
-import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { Platform, ScrollView, StyleSheet, TouchableOpacity, TextInput, View, Animated, Modal, Text } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import MapView, { Region } from 'react-native-maps';
+import { Image } from 'expo-image';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { addEvent } from '@/firebase/events';
+import { getUserAvatar } from '@/firebase/users';
 
 // Pre-defined campus tags
 const EVENT_TYPES = ['Studying', 'Sports', 'Hangout', 'Nature', 'Food'];
@@ -25,6 +28,7 @@ export default function TabTwoScreen() {
   // State Management
   const [isCreating, setIsCreating] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [expandedHangoutId, setExpandedHangoutId] = useState<string | null>(null);
   
   // Form State Fields
   const [activityName, setActivityName] = useState('');
@@ -32,8 +36,16 @@ export default function TabTwoScreen() {
   const [duration, setDuration] = useState('');
   const [selectedType, setSelectedType] = useState('Studying');
   const [locationDescription, setLocationDescription] = useState('');
+  
+  // Coordinates for the new event
+  const [eventCoordinates, setEventCoordinates] = useState<Region>({
+    latitude: 1.2966,
+    longitude: 103.7764,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+  });
 
-  // Localized Mock Data for Joined Events
+  // Mock list of events the user has joined
   const [myEvents, setMyEvents] = useState([
     { id: 'j1', name: 'CS2100 Midterm Grind', type: 'Studying', location: 'COM1 SR1', time: '14:00 - 18:00', host: 'Alex Tan' },
     { id: 'j2', name: 'Board Games Night', type: 'Hangout', location: 'UTown ERC', time: '19:00 - 23:00', host: 'Sarah Wee' }
@@ -43,39 +55,54 @@ export default function TabTwoScreen() {
   const viewFadeAnim = useRef(new Animated.Value(1)).current;
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
-  const handleCreateEvent = () => {
-    if (!activityName || !time || !locationDescription) return;
+  const handleCreateEvent = async () => {
+    if (!activityName) return;
 
-    // Simulate creation locally
-    const newEvent = {
-      id: String(Date.now()),
-      name: activityName,
-      type: selectedType,
-      location: locationDescription,
-      time: `${time} (${duration || '1h'})`,
-      host: 'Me',
-    };
+    try {
+      const avatar = await getUserAvatar() || 'dawg'; // fallback to dawg if not set
 
-    setIsCreating(false);
-    setMyEvents([newEvent, ...myEvents]);
+      await addEvent({
+        title: activityName,
+        category: 'Hangout', // Default category for now
+        location: locationDescription,
+        time: time,
+        latitude: eventCoordinates.latitude,
+        longitude: eventCoordinates.longitude,
+        avatar: avatar
+      }, "anonymous_user");
 
-    // Clear form fields cleanly
-    setActivityName('');
-    setTime('');
-    setDuration('');
-    setLocationDescription('');
+      const newEvent = {
+        id: Math.random().toString(),
+        name: activityName,
+        type: 'Hangout',
+        color: '#8B5CF6',
+        time: time || 'TBD',
+        location: locationDescription || 'Campus',
+        host: 'Me'
+      };
+      setMyEvents([newEvent, ...myEvents]);
 
-    // Trigger Success Banner Transition Sequence
-    setShowToast(true);
-    Animated.sequence([
-      Animated.timing(toastOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.delay(1800),
-      Animated.timing(toastOpacity, { toValue: 0, duration: 400, useNativeDriver: true })
-    ]).start(() => {
-      setShowToast(false);
-      // Fade back the screen text elegantly
-      Animated.timing(viewFadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-    });
+      // Clear form fields cleanly
+      setActivityName('');
+      setTime('');
+      setDuration('');
+      setLocationDescription('');
+
+      // Trigger Success Banner Transition Sequence
+      setShowToast(true);
+      setIsCreating(false);
+      Animated.sequence([
+        Animated.timing(toastOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.delay(1800),
+        Animated.timing(toastOpacity, { toValue: 0, duration: 400, useNativeDriver: true })
+      ]).start(() => {
+        setShowToast(false);
+        // Fade back the screen text elegantly
+        Animated.timing(viewFadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+      });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (
@@ -104,16 +131,46 @@ export default function TabTwoScreen() {
           ) : (
             <View style={styles.eventsGrid}>
               {myEvents.map((event) => (
-                <View key={event.id} style={styles.joinedCard}>
-                  <View style={styles.cardAccentLine} />
-                  <View style={styles.cardMainBody}>
-                    <ThemedText type="subtitle" style={styles.cardTitle}>{event.name}</ThemedText>
-                    <ThemedText type="small" style={styles.cardMeta}>
-                      {event.type} • Hosted by {event.host}
-                    </ThemedText>
-                    <ThemedText type="smallBold" style={styles.cardLocation}>📍 {event.location}</ThemedText>
-                    <ThemedText type="small" style={styles.cardTime}>🕒 {event.time}</ThemedText>
-                  </View>
+                <View key={event.id}>
+                  <TouchableOpacity 
+                    activeOpacity={0.7} 
+                    onPress={() => setExpandedHangoutId(expandedHangoutId === event.id ? null : event.id)}
+                  >
+                    <View style={styles.joinedCard}>
+                      <View style={styles.cardAccentLine} />
+                      <View style={styles.cardMainBody}>
+                        <ThemedText type="subtitle" style={styles.cardTitle}>{event.name}</ThemedText>
+                        <ThemedText type="small" style={styles.cardMeta}>
+                          {event.type} • Hosted by {event.host}
+                        </ThemedText>
+                        <ThemedText type="smallBold" style={styles.cardLocation}>📍 {event.location}</ThemedText>
+                        <ThemedText type="small" style={styles.cardTime}>🕒 {event.time}</ThemedText>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Collapsible Detail Section */}
+                  {expandedHangoutId === event.id && (
+                    <View style={styles.expandedDetail}>
+                      <View style={styles.expandedRow}>
+                        <ThemedText type="defaultSemiBold" style={styles.expandedLabel}>📍 Location</ThemedText>
+                        <ThemedText style={styles.expandedValue}>{event.location}</ThemedText>
+                      </View>
+                      <View style={styles.expandedRow}>
+                        <ThemedText type="defaultSemiBold" style={styles.expandedLabel}>🕒 Time</ThemedText>
+                        <ThemedText style={styles.expandedValue}>{event.time}</ThemedText>
+                      </View>
+                      <View style={styles.expandedRow}>
+                        <ThemedText type="defaultSemiBold" style={styles.expandedLabel}>👤 Host</ThemedText>
+                        <ThemedText style={styles.expandedValue}>{event.host}</ThemedText>
+                      </View>
+                      <View style={styles.expandedRow}>
+                        <ThemedText type="defaultSemiBold" style={styles.expandedLabel}>🎯 Type</ThemedText>
+                        <ThemedText style={styles.expandedValue}>{event.type}</ThemedText>
+                      </View>
+                      {/* Future: Anonymous chatroom section goes here */}
+                    </View>
+                  )}
                 </View>
               ))}
             </View>
@@ -224,11 +281,26 @@ export default function TabTwoScreen() {
                 </ScrollView>
               </View>
 
-              {/* Map Selection Simulation Block */}
+              {/* Map Selection Simulation Block -> Replaced with real MapView */}
               <View style={styles.inputGroup}>
                 <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>Pin Location on Campus Map</ThemedText>
-                <View style={styles.miniMap}>
-                  <ThemedText type="small" style={styles.mapPinIndicator}>📍 [ Select Campus Coordinates ]</ThemedText>
+                <View style={styles.mapSelectorBox}>
+                  <MapView
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+                    mapType="satellite"
+                    initialRegion={eventCoordinates}
+                    onRegionChangeComplete={setEventCoordinates}
+                  />
+                  <View style={styles.darkOverlay} pointerEvents="none" />
+                  
+                  {/* Fixed Center Pin */}
+                  <View style={styles.centerPinContainer} pointerEvents="none">
+                    <SymbolView name="mappin" size={32} tintColor="#EF4444" />
+                  </View>
+                  
+                  <View style={styles.mapHintBadge}>
+                    <ThemedText style={styles.mapHintText}>Drag map to pin location</ThemedText>
+                  </View>
                 </View>
               </View>
 
@@ -245,7 +317,6 @@ export default function TabTwoScreen() {
                   onChangeText={setLocationDescription}
                 />
               </View>
-
             </ScrollView>
           </SafeAreaView>
         </ThemedView>
@@ -288,7 +359,8 @@ const styles = StyleSheet.create({
   cancelText: { color: '#6B7280', fontSize: 16 },
   doneText: { color: '#2563EB', fontSize: 16, fontWeight: '700' },
   formContainer: { padding: Spacing.four, gap: Spacing.four },
-  inputGroup: { gap: Spacing.two },
+  modalContent: { flex: 1 },
+  inputGroup: { gap: Spacing.four, marginBottom: Spacing.six },
   fieldLabel: { fontSize: 14, color: '#374151' },
   textInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, fontSize: 15, color: '#111827' },
   rowInputs: { flexDirection: 'row' },
@@ -297,11 +369,76 @@ const styles = StyleSheet.create({
   selectedTagItem: { backgroundColor: '#2563EB' },
   tagText: { color: '#4B5563', fontSize: 13 },
   selectedTagText: { color: '#FFFFFF', fontWeight: '600' },
-  miniMap: { height: 130, backgroundColor: '#D1D5DB', borderRadius: Spacing.two, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#9CA3AF' },
-  mapPinIndicator: { color: '#4B5563', fontWeight: '500' },
+  mapSelectorBox: {
+    height: 180,
+    backgroundColor: '#F3F4F6',
+    borderRadius: Spacing.three,
+    marginBottom: Spacing.four,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  darkOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  centerPinContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginTop: -32, // Offset for pin height so the tip points to center
+    marginLeft: -16,
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  mapHintBadge: {
+    position: 'absolute',
+    bottom: Spacing.two,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    borderRadius: 20,
+  },
+  mapHintText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   textArea: { minHeight: 70, textAlignVertical: 'top' },
 
   // Toast status alert box positioning styles
   toastAlert: { position: 'absolute', top: '45%', alignSelf: 'center', backgroundColor: 'rgba(17, 24, 39, 0.9)', paddingHorizontal: Spacing.five, paddingVertical: Spacing.three, borderRadius: Spacing.four, zIndex: 1000, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
-  toastText: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 }
+  toastText: { color: '#FFFFFF', fontWeight: '600', fontSize: 16 },
+
+  // Collapsible Detail Styles
+  expandedDetail: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: '#E5E7EB',
+    borderBottomLeftRadius: Spacing.three,
+    borderBottomRightRadius: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    gap: Spacing.two,
+  },
+  expandedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  expandedLabel: {
+    fontSize: 13,
+    color: '#4B5563',
+  },
+  expandedValue: {
+    fontSize: 13,
+    color: '#111827',
+    fontWeight: '500',
+  },
 });

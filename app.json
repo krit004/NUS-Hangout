@@ -18,7 +18,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.krit004.NUS_Hangout"
+      "package": "com.krit004.NUS_Hangout",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDe0MYhDWyVAEWj7LVhLmIPJyJ9m75k-v4"
+        }
+      }
     },
     "web": {
       "output": "static",

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { Platform, ScrollView, StyleSheet, TouchableOpacity, TextInput, View, Pressable } from 'react-native';
@@ -9,15 +9,18 @@ import { ThemedView } from '@/components/themed-view';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { getUserAvatar, updateUserAvatar } from '@/firebase/users';
 
 const AVAILABLE_INTERESTS = ['Studying', 'Sports', 'Hangout', 'Nature', 'Food', 'Gaming', 'Music', 'Hackathons'];
-const MOCK_AVATARS = [
-  require('@/assets/avatars/dawg.png'),
-  require('@/assets/avatars/gorrila.png'),
-  require('@/assets/avatars/beardedboy.png'),
-  require('@/assets/avatars/goose.png'),
-  require('@/assets/avatars/girlcoloured.png'),
-];
+
+export const AVATAR_MAP: Record<string, any> = {
+  'dawg': require('@/assets/avatars/dawg.png'),
+  'gorrila': require('@/assets/avatars/gorrila.png'),
+  'beardedboy': require('@/assets/avatars/beardedboy.png'),
+  'goose': require('@/assets/avatars/goose.png'),
+  'girlcoloured': require('@/assets/avatars/girlcoloured.png'),
+};
+const MOCK_AVATAR_KEYS = Object.keys(AVATAR_MAP);
 
 export default function TabTwoScreen() {
   const safeAreaInsets = useSafeAreaInsets();
@@ -32,9 +35,24 @@ export default function TabTwoScreen() {
   const [name, setName] = useState('');
   const [telegramId, setTelegramId] = useState('');
   const [bio, setBio] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(MOCK_AVATARS[0]);
+  const [selectedAvatarKey, setSelectedAvatarKey] = useState(MOCK_AVATAR_KEYS[0]);
   const [selectedInterests, setSelectedInterests] = useState<string[]>(['Studying', 'Food']);
   const [showAllAvatars, setShowAllAvatars] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
+
+  useEffect(() => {
+    // Load avatar from Firebase on mount
+    getUserAvatar().then(avatar => {
+      if (avatar && AVATAR_MAP[avatar]) {
+        setSelectedAvatarKey(avatar);
+      }
+    });
+  }, []);
+
+  const handleSelectAvatar = (key: string) => {
+    setSelectedAvatarKey(key);
+    updateUserAvatar(key);
+  };
 
   const toggleInterest = (interest: string) => {
     if (selectedInterests.includes(interest)) {
@@ -58,10 +76,12 @@ export default function TabTwoScreen() {
         {/* Profile Hero Header Section */}
         <View style={styles.heroSection}>
           <View style={styles.avatarWrapper}>
-            <Image source={selectedAvatar} style={styles.mainAvatar} />
-            <View style={styles.editBadge}>
-              <SymbolView name="pencil" size={12} tintColor="#FFFFFF" />
-            </View>
+            <Image source={AVATAR_MAP[selectedAvatarKey]} style={styles.mainAvatar} />
+            {isEditing && (
+              <View style={styles.editBadge}>
+                <SymbolView name="pencil" size={12} tintColor="#FFFFFF" />
+              </View>
+            )}
           </View>
           
           <ThemedText type="subtitle" style={styles.profileTitle}>
@@ -72,8 +92,11 @@ export default function TabTwoScreen() {
           </ThemedText>
         </View>
 
-        {/* Form Sections Area */}
-        <View style={styles.formContainer}>
+        {/* Form Sections Area - Fades when locked */}
+        <View 
+          style={[styles.formContainer, !isEditing && { opacity: 0.5 }]} 
+          pointerEvents={isEditing ? 'auto' : 'none'}
+        >
           
           {/* Identity Section Card */}
           <View style={styles.formCard}>
@@ -87,6 +110,7 @@ export default function TabTwoScreen() {
                 placeholderTextColor="#9CA3AF"
                 value={name}
                 onChangeText={setName}
+                editable={isEditing}
               />
             </View>
 
@@ -102,6 +126,7 @@ export default function TabTwoScreen() {
                   autoCorrect={false}
                   value={telegramId}
                   onChangeText={setTelegramId}
+                  editable={isEditing}
                 />
               </View>
             </View>
@@ -111,7 +136,7 @@ export default function TabTwoScreen() {
           <View style={styles.formCard}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <ThemedText type="defaultSemiBold" style={styles.sectionLabel}>Choose Your Avatar</ThemedText>
-              {MOCK_AVATARS.length > 4 && (
+              {MOCK_AVATAR_KEYS.length > 4 && (
                 <TouchableOpacity onPress={() => setShowAllAvatars(!showAllAvatars)} style={{ padding: 4 }}>
                   <SymbolView 
                     name={{ 
@@ -126,13 +151,13 @@ export default function TabTwoScreen() {
               )}
             </View>
             <View style={styles.avatarGrid}>
-              {MOCK_AVATARS.slice(0, showAllAvatars ? MOCK_AVATARS.length : 4).map((avatarSource, index) => (
+              {MOCK_AVATAR_KEYS.slice(0, showAllAvatars ? MOCK_AVATAR_KEYS.length : 4).map((avatarKey, index) => (
                 <TouchableOpacity 
-                  key={index}
-                  style={[styles.avatarOptionWrapper, selectedAvatar === avatarSource && styles.selectedAvatarOption]}
-                  onPress={() => setSelectedAvatar(avatarSource)}
+                  key={avatarKey}
+                  style={[styles.avatarOptionWrapper, selectedAvatarKey === avatarKey && styles.selectedAvatarOption]}
+                  onPress={() => handleSelectAvatar(avatarKey)}
                 >
-                  <Image source={avatarSource} style={styles.gridAvatar} />
+                  <Image source={AVATAR_MAP[avatarKey]} style={styles.gridAvatar} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -173,10 +198,21 @@ export default function TabTwoScreen() {
               numberOfLines={4}
               value={bio}
               onChangeText={setBio}
+              editable={isEditing}
             />
           </View>
 
         </View>
+
+        {/* Action Button */}
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => setIsEditing(!isEditing)}
+        >
+          <ThemedText style={styles.actionButtonText}>
+            {isEditing ? 'Save Profile' : 'Edit Profile'}
+          </ThemedText>
+        </TouchableOpacity>
 
         {Platform.OS === 'web' && <WebBadge />}
       </ThemedView>
@@ -340,7 +376,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   textArea: {
-    minHeight: 90,
+    height: 100,
     textAlignVertical: 'top',
+    paddingTop: Spacing.three,
   },
+  actionButton: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: Spacing.four,
+    marginBottom: Spacing.two,
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  }
 });
