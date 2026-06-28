@@ -1,17 +1,17 @@
-import React, {useState, useRef } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SymbolView } from 'expo-symbols';
-import { Platform, ScrollView, StyleSheet, TouchableOpacity, TextInput, View, Animated, Modal, Text } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRef, useState } from 'react';
+import { Animated, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
-import { Image } from 'expo-image';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 import { addEvent } from '@/firebase/events';
 import { getUserAvatar } from '@/firebase/users';
+import { useTheme } from '@/hooks/use-theme';
 
 // Pre-defined campus tags
 const EVENT_TYPES = ['Studying', 'Sports', 'Hangout', 'Nature', 'Food'];
@@ -29,14 +29,16 @@ export default function TabTwoScreen() {
   const [isCreating, setIsCreating] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [expandedHangoutId, setExpandedHangoutId] = useState<string | null>(null);
-  
+
   // Form State Fields
   const [activityName, setActivityName] = useState('');
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [time, setTime] = useState('');
   const [duration, setDuration] = useState('');
   const [selectedType, setSelectedType] = useState('Studying');
   const [locationDescription, setLocationDescription] = useState('');
-  
+
   // Coordinates for the new event
   const [eventCoordinates, setEventCoordinates] = useState<Region>({
     latitude: 1.2966,
@@ -107,11 +109,11 @@ export default function TabTwoScreen() {
 
   return (
     <ThemedView style={[styles.outerFrame, { backgroundColor: theme.background }]}>
-      
+
       {/* Primary My Events List Screen View */}
       <Animated.ScrollView
         style={[styles.scrollView, { opacity: viewFadeAnim }]}
-        contentContainerStyle={{ 
+        contentContainerStyle={{
           paddingTop: Platform.OS === 'android' ? insets.top : Spacing.four,
           paddingBottom: insets.bottom + 80 // Leave space clear of FAB overlap
         }}
@@ -132,8 +134,8 @@ export default function TabTwoScreen() {
             <View style={styles.eventsGrid}>
               {myEvents.map((event) => (
                 <View key={event.id}>
-                  <TouchableOpacity 
-                    activeOpacity={0.7} 
+                  <TouchableOpacity
+                    activeOpacity={0.7}
                     onPress={() => setExpandedHangoutId(expandedHangoutId === event.id ? null : event.id)}
                   >
                     <View style={styles.joinedCard}>
@@ -182,8 +184,8 @@ export default function TabTwoScreen() {
 
       {/* Floating Action Creation Button (FAB) */}
       {!isCreating && (
-        <TouchableOpacity 
-          style={[styles.fabButton, { bottom: insets.bottom - 90 }]} 
+        <TouchableOpacity
+          style={[styles.fabButton, { bottom: insets.bottom - 90 }]}
           onPress={() => {
             viewFadeAnim.setValue(0.3); // Dim the background list context
             setIsCreating(true);
@@ -211,10 +213,10 @@ export default function TabTwoScreen() {
       >
         <ThemedView style={styles.modalWorkspace}>
           <SafeAreaView style={{ flex: 1 }}>
-            
+
             {/* Modal Header Controls */}
             <View style={styles.modalHeader}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => {
                   setIsCreating(false);
                   Animated.timing(viewFadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
@@ -222,14 +224,14 @@ export default function TabTwoScreen() {
               >
                 <ThemedText style={styles.cancelText}>Cancel</ThemedText>
               </TouchableOpacity>
-              
+
               <TouchableOpacity onPress={handleCreateEvent}>
                 <ThemedText style={[styles.doneText, !activityName && { opacity: 0.4 }]}>Create</ThemedText>
               </TouchableOpacity>
             </View>
 
             <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.formContainer}>
-              
+
               {/* Event Properties Area */}
               <View style={styles.inputGroup}>
                 <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>What is the activity name?</ThemedText>
@@ -242,27 +244,40 @@ export default function TabTwoScreen() {
                 />
               </View>
 
-              <View style={styles.rowInputs}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: Spacing.two }]}>
-                  <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>Start Time</ThemedText>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="e.g., 14:00"
-                    placeholderTextColor="#9CA3AF"
-                    value={time}
-                    onChangeText={setTime}
+              <View style={styles.inputGroup}>
+                <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>Start Time</ThemedText>
+                <TouchableOpacity
+                  style={styles.textInput}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Text style={{ color: time ? '#111827' : '#9CA3AF', fontSize: 15 }}>
+                    {time ? new Date(time).toLocaleString() : 'Select date and time'}
+                  </Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={date}
+                    mode="datetime"
+                    display="default"
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false);
+                      if (selectedDate) {
+                        setDate(selectedDate);
+                        setTime(selectedDate.toISOString());
+                      }
+                    }}
                   />
-                </View>
-                <View style={[styles.inputGroup, { flex: 1, marginLeft: Spacing.two }]}>
-                  <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>Duration</ThemedText>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="e.g., 2 hours"
-                    placeholderTextColor="#9CA3AF"
-                    value={duration}
-                    onChangeText={setDuration}
-                  />
-                </View>
+                )}
+              </View>
+              <View style={styles.inputGroup}>
+                <ThemedText type="defaultSemiBold" style={styles.fieldLabel}>Duration</ThemedText>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g., 2 hours"
+                  placeholderTextColor="#9CA3AF"
+                  value={duration}
+                  onChangeText={setDuration}
+                />
               </View>
 
               {/* Tag Category Picker */}
@@ -292,12 +307,12 @@ export default function TabTwoScreen() {
                     onRegionChangeComplete={setEventCoordinates}
                   />
                   <View style={styles.darkOverlay} pointerEvents="none" />
-                  
+
                   {/* Fixed Center Pin */}
                   <View style={styles.centerPinContainer} pointerEvents="none">
                     <SymbolView name="mappin" size={32} tintColor="#EF4444" />
                   </View>
-                  
+
                   <View style={styles.mapHintBadge}>
                     <ThemedText style={styles.mapHintText}>Drag map to pin location</ThemedText>
                   </View>
@@ -348,11 +363,11 @@ const styles = StyleSheet.create({
   cardMeta: { fontSize: 12, color: '#6B7280' },
   cardLocation: { fontSize: 13, color: '#374151', marginTop: 2 },
   cardTime: { fontSize: 12, color: '#4B5563' },
-  
+
   // Floating Action Trigger Style
   fabButton: { position: 'absolute', right: Spacing.four, flexDirection: 'row', alignItems: 'center', backgroundColor: '#2563EB', paddingHorizontal: Spacing.three, paddingVertical: Spacing.three, borderRadius: 30, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 5, zIndex: 99 },
   fabText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
-  
+
   // Custom Sheet Layout Styles
   modalWorkspace: { flex: 1, backgroundColor: '#F9FAFB' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.four, paddingVertical: Spacing.three, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB', backgroundColor: '#FFFFFF' },

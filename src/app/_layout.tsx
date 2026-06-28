@@ -8,7 +8,7 @@ import { onAuthChange } from '@/firebase/auth';
 import LoginScreen from './login';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
