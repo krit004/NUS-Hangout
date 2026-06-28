@@ -1,10 +1,10 @@
 import {
-    addDoc,
-    collection,
-    getDocs,
-    orderBy,
-    query,
-    serverTimestamp,
+  addDoc,
+  collection,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
 const EVENTS_COLLECTION = "events";
@@ -46,8 +46,11 @@ export async function getEvents(): Promise<Event[]> {
     orderBy("createdAt", "desc")
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as Omit<Event, "id">),
-  }));
+  const now = new Date();
+  return snapshot.docs
+    .map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<Event, "id">),
+    }))
+    .filter((event) => new Date(event.time) > now);
 }
