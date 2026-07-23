@@ -1,7 +1,7 @@
 
 import { SymbolView } from 'expo-symbols';
 import { Timestamp } from 'firebase/firestore';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Modal, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import MapView, { Region } from 'react-native-maps';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -14,6 +14,7 @@ import { ThemedView } from '@/components/themed-view';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { addEvent } from '@/firebase/events';
+import { auth } from '@/firebase/firebase';
 import { getUserAvatar } from '@/firebase/users';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -59,12 +60,27 @@ export default function TabTwoScreen() {
   // Animated Hooks for screen Transitions & Toast status alert
   const viewFadeAnim = useRef(new Animated.Value(1)).current;
   const toastOpacity = useRef(new Animated.Value(0)).current;
+  const [currentUser, setCurrentUser] = useState(auth.currentUser);
 
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+    return unsubscribe;
+    }, []); 
+      
   const handleCreateEvent = async () => {
     if (!activityName) return;
+    if (!currentUser) {
+      console.log('No user logged in.');
+      return;
+      }
 
     try {
+
       const avatar = await getUserAvatar() || 'dawg';
+      console.log('avatar;', avatar);
+      console.log('user;', auth.currentUser);
 
       const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
       const startTimestamp = Timestamp.fromDate(startDate);
