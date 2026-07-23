@@ -134,6 +134,7 @@ export default function HomeScreen() {
                 coordinate={{ latitude: evt.latitude || 1.2966, longitude: evt.longitude || 103.7764 }}
                 title={evt.title}
                 description={evt.location}
+                tracksViewChanges={false}
                 onPress={() => {
                   // Auto-join since you created it
                   if (!joinedEvents.includes(evt.id)) {
